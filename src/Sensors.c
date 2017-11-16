@@ -91,10 +91,10 @@ int Send(int state)
 		case dataSend:
 		
 		//sending top half
-		if (USART_IsSendReady(0)){USART_Send(topHalf, 0);}
+		if (USART_IsSendReady(0) && topHalf != 0){USART_Send(topHalf, 0);}
 		
 		//sending bottom half
-		if (USART_IsSendReady(1)){USART_Send(bottomHalf, 1);}		
+		if (USART_IsSendReady(1) && bottomHalf != 0){USART_Send(bottomHalf, 1);}		
 			
 		default:
 		break;
@@ -125,11 +125,11 @@ int main(void)
 	++k;
 	
 	tasks[k].state = -1;
-	tasks[k].period = 50;
+	tasks[k].period = 60;
 	tasks[k].elapsedTime = tasks[k].period;
 	tasks[k].TickFct = &Send;
 	
-	TimerSet(50);
+	TimerSet(10);
 	TimerOn();
 	
 	while(1){}

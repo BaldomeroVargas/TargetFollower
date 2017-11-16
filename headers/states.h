@@ -8,6 +8,69 @@
 	x	x	x	x  > bottom half (PINC3-PINC0)
 	x	x	x	x  > bottom half (PINC7-PINC4)
 */
+
+/*LCD Output*/
+const char * moveOut = "Mov: ";
+const char * destOut = "Dest: ";
+void lcdDestOut(Point P){
+	LCD_ClearScreen();
+	if(P.x < 0){
+		LCD_DisplayString(1, moveOut);
+		LCD_Cursor(6);
+		LCD_WriteData('-');
+		LCD_Cursor(7);
+		LCD_WriteData(48 + (-1*P.x));
+	}
+	else{
+		LCD_DisplayString(1, moveOut);
+		LCD_Cursor(6);
+		LCD_WriteData(48 + P.x);
+	}
+	if(P.y < 0){
+		LCD_DisplayString(17, moveOut);
+		LCD_Cursor(22);
+		LCD_WriteData('-');
+		LCD_Cursor(23);
+		LCD_WriteData(48 + (-1*P.y));
+	}
+	else{
+		LCD_DisplayString(17, moveOut);
+		LCD_Cursor(22);
+		LCD_WriteData(48 + P.y);
+	}
+	
+	return;
+}
+
+void lcdLocOut(Point P){
+	if(P.x < 0){
+		LCD_DisplayString(9, destOut);
+		LCD_Cursor(15);
+		LCD_WriteData('-');
+		LCD_Cursor(16);
+		LCD_WriteData(48 + (-1*P.x));
+	}
+	else{
+		LCD_DisplayString(9, destOut);
+		LCD_Cursor(15);
+		LCD_WriteData(48 + P.x);
+	}
+	if(P.y < 0){
+		LCD_DisplayString(25, destOut);
+		LCD_Cursor(31);
+		LCD_WriteData('-');
+		LCD_Cursor(32);
+		LCD_WriteData(48 + (-1*P.y));
+	}
+	else{
+		LCD_DisplayString(25, destOut);
+		LCD_Cursor(31);
+		LCD_WriteData(48 + P.y);
+	}
+	
+	return;
+}
+
 /*Sensor Logic*/
 unsigned char topHalf = 0; 
 unsigned char bottomHalf = 0;
@@ -20,14 +83,29 @@ unsigned char bit = 0;
 /*Motor Logic*/
 const unsigned char CCW[] = {0x06, 0x02, 0x0A, 0x08, 0x09, 0x01, 0x05, 0x04};
 const unsigned char CW[] = {0x04, 0x05, 0x01, 0x09, 0x08, 0x0A, 0x02, 0x06};
-const unsigned short SensorDist = 1000; //find once board is created, just a place holder
+const unsigned short SensorDist = 256; //find once board is created, just a place holder
+signed short xMovement = 0;
+signed short yMovement = 0;
+unsigned short xTicks = 0;
+unsigned short yTicks = 0;
+unsigned char xRotation = 0;
+unsigned char yRotation = 0;
+/*Motor flags*/
+unsigned char xFlag = 0;
+unsigned char yFlag = 0;
+unsigned char xComplete = 0;
+unsigned char yComplete = 0;
+/*Motor flags*/
 	
 /*queue size*/
 Queue moves;
-const unsigned char QSIZE = 10;
+const unsigned char QSIZE = 30;
 	
-/*Motor Variables for motor location*/
+/*Motor Variables and functions for motor location*/
 Point MotorLocation;
+Point previous;
+Point movement;
+Point dest;
 Point MotorInit(){
 	Point Initial;
 	Initial.x = 0;
@@ -35,7 +113,7 @@ Point MotorInit(){
 	
 	return Initial;
 }
-Point UpdateMotorLocation(signed char x, signed char y){
+Point UpdatePoint(signed char x, signed char y){
 	Point MotorReturn;
 	MotorReturn.x = x;
 	MotorReturn.y = y;
@@ -49,7 +127,11 @@ Point DistanceToTravel(Point A, Point B){
 	
 	return Distance;
 }
-
+unsigned char isPointEqual(Point A, Point B){
+	if(A.x != B.x){return 0;}
+	if(A.y != B.y){return 0;}
+	return 1;
+}
 /*Motor Logic*/
 
 /*USART Data gathering*/
@@ -90,7 +172,7 @@ int RecieveData(int state)
 		if(USART_HasReceived(1)){
 			bottomHalf = USART_Receive(1);
 		}		
-	
+		
 		break;	
 		
 		default:
@@ -100,18 +182,21 @@ int RecieveData(int state)
 }
 
 /*LCD debugging state machine: will just load queue*/
-enum LCD_SM{outputSensor};
-int LCD_SM(int state)
+enum EnQueue_SM{setqueue};
+int EnQueue_SM(int state)
 {
+	//temp point variable
+	Point temp;
+		
 	//transitions
 	switch(state)
 	{
 		case -1:
-		state = outputSensor;
+		state = setqueue;
 		break;
 		
-		case outputSensor:
-		state = outputSensor;
+		case setqueue:
+		state = setqueue;
 		break;
 		
 		default:
@@ -125,36 +210,51 @@ int LCD_SM(int state)
 		case -1:
 		break;
 		
-		case outputSensor:
+		case setqueue:
 		//output a sensor change
-		
 		bit = 0;
 		
-		if(topHalf != prevTop){
+		if(topHalf != prevTop){		
 			prevTop = topHalf;
-			if(GetBit(topHalf, bit)){//LCD_Cursor(1); //LCD_WriteData('A');
-			QueueEnqueue(moves, 'A');}
+			if(GetBit(topHalf, bit)){						
+				temp = UpdatePoint(2,2);
+				QueueEnqueue(moves, temp);
+			}
 			++bit;
-			if(GetBit(topHalf, bit)){//LCD_Cursor(1); //LCD_WriteData('B');
-			QueueEnqueue(moves, 'B');}
+			if(GetBit(topHalf, bit)){
+				temp = UpdatePoint(1,2);
+				QueueEnqueue(moves, temp);				
+			}
 			++bit;
-			if(GetBit(topHalf, bit)){//LCD_Cursor(1); //LCD_WriteData('C');
-			QueueEnqueue(moves, 'C');}
+			if(GetBit(topHalf, bit)){
+				temp = UpdatePoint(0,2);
+				QueueEnqueue(moves, temp);
+			}
 			++bit;
-			if(GetBit(topHalf, bit)){//LCD_Cursor(1); //LCD_WriteData('D');
-			QueueEnqueue(moves, 'D');}
+			if(GetBit(topHalf, bit)){
+				temp = UpdatePoint(-1,2);
+				QueueEnqueue(moves, temp);
+			}
 			++bit;
-			if(GetBit(topHalf, bit)){//LCD_Cursor(1); //LCD_WriteData('E');
-			QueueEnqueue(moves, 'E');}
+			if(GetBit(topHalf, bit)){
+				temp = UpdatePoint(2,1);
+				QueueEnqueue(moves, temp);
+			}
 			++bit;
-			if(GetBit(topHalf, bit)){//LCD_Cursor(1); //LCD_WriteData('F');
-			QueueEnqueue(moves, 'F');}
+			if(GetBit(topHalf, bit)){
+				temp = UpdatePoint(1,1);
+				QueueEnqueue(moves, temp);
+			}
 			++bit;
-			if(GetBit(topHalf, bit)){//LCD_Cursor(1); //LCD_WriteData('G');
-			QueueEnqueue(moves, 'G');}
+			if(GetBit(topHalf, bit)){
+				temp = UpdatePoint(0,1);
+				QueueEnqueue(moves, temp);
+			}
 			++bit;
-			if(GetBit(topHalf, bit)){//LCD_Cursor(1); //LCD_WriteData('H');
-			QueueEnqueue(moves, 'H');}
+			if(GetBit(topHalf, bit)){
+				temp = UpdatePoint(-1,1);
+				QueueEnqueue(moves, temp);
+			}
 		}
 		
 		bit = 0;		
@@ -162,73 +262,46 @@ int LCD_SM(int state)
 		if(bottomHalf != prevBot){
 			prevBot = bottomHalf;
 			//check which sensor was triggered
-			if(GetBit(bottomHalf, bit)){//LCD_Cursor(1); LCD_WriteData(1); 
-				QueueEnqueue(moves, '1');}
+			if(GetBit(bottomHalf, bit)){
+				temp = UpdatePoint(2,0);
+				QueueEnqueue(moves, temp);
+			}
 			++bit;
-			if(GetBit(bottomHalf, bit)){//LCD_Cursor(1); //LCD_WriteData('2');
-				QueueEnqueue(moves, '2');}
+			if(GetBit(bottomHalf, bit)){
+				temp = UpdatePoint(1,0);
+				QueueEnqueue(moves, temp);
+			}
 			++bit;
-			if(GetBit(bottomHalf, bit)){//LCD_Cursor(1); //LCD_WriteData('3');
-				QueueEnqueue(moves, '3');}
+			if(GetBit(bottomHalf, bit)){
+				temp = UpdatePoint(0,0);
+				QueueEnqueue(moves, temp);
+			}
 			++bit;
-			if(GetBit(bottomHalf, bit)){//LCD_Cursor(1); //LCD_WriteData('4');
-				QueueEnqueue(moves, '4');}
+			if(GetBit(bottomHalf, bit)){
+				temp = UpdatePoint(-1,0);
+				QueueEnqueue(moves, temp);
+			}
 			++bit;
-			if(GetBit(bottomHalf, bit)){//LCD_Cursor(1); //LCD_WriteData('5');
-				QueueEnqueue(moves, '5');}
+			if(GetBit(bottomHalf, bit)){
+				temp = UpdatePoint(2,-1);
+				QueueEnqueue(moves, temp);
+			}
 			++bit;
-			if(GetBit(bottomHalf, bit)){//LCD_Cursor(1); //LCD_WriteData('6');
-				QueueEnqueue(moves, '6');}
+			if(GetBit(bottomHalf, bit)){
+				temp = UpdatePoint(1,-1);
+				QueueEnqueue(moves, temp);
+			}
 			++bit;
-			if(GetBit(bottomHalf, bit)){//LCD_Cursor(1); //LCD_WriteData('7');
-				QueueEnqueue(moves, '7');}
+			if(GetBit(bottomHalf, bit)){
+				temp = UpdatePoint(0,-1);
+				QueueEnqueue(moves, temp);
+			}
 			++bit;
-			if(GetBit(bottomHalf, bit)){//LCD_Cursor(1); //LCD_WriteData('8');
-				QueueEnqueue(moves, '8');}
-		}
-		break;
-		
-		default:
-		break;
-	}
-	return state;
-}
-
-enum PrintQueue_SM{print};
-int PrintQueue_SM(int state)
-{
-	//transitions
-	switch(state)
-	{
-		case -1:
-		state = print;
-		break;
-		
-		case print:
-		state = print;
-		break;
-		
-		default:
-		state = -1;
-		break;
-	}
-	
-	//actions
-	switch(state)
-	{
-		case -1:
-		break;
-		
-		case print:		
-		//print contents of queue
-		LCD_ClearScreen();
-		for(int i = 0; i < QSIZE; ++i){
-			if(!QueueIsEmpty(moves)){
-				LCD_Cursor(i + 1);				
-				LCD_WriteData(QueueDequeue(moves));
+			if(GetBit(bottomHalf, bit)){
+				temp = UpdatePoint(-1,-1);
+				QueueEnqueue(moves, temp);
 			}
 		}
-		
 		break;
 		
 		default:
@@ -245,6 +318,7 @@ int MotorLogic_SM(int state)
 	switch(state)
 	{
 		case -1:
+		state = calculate;
 		break;
 		
 		case calculate:
@@ -264,12 +338,29 @@ int MotorLogic_SM(int state)
 		break;
 
 		case calculate:
+		
 		if(!QueueIsEmpty(moves)){
-			//convert queue to accept point
 			
-			//update location here
-			//MotorLocation = UpdateMotorLocation(someX, someY);
+			//waiting for flags to not be set anymore
+			if(!xFlag && !yFlag){
+				dest = QueueDequeue(moves);
+				if(!isPointEqual(dest, previous)){
+					previous = UpdatePoint(dest.x, dest.y);
+					movement = DistanceToTravel(dest, MotorLocation);
+					
+					lcdDestOut(movement);
+					
+					if(movement.x != 0){
+						xFlag = 1;
+					}
+					if(movement.y != 0){
+						yFlag = 1;
+					} 
+				}				
+			}
 		}
+		
+		break;
 
 		default:
 		break;
@@ -285,6 +376,48 @@ int MotorMove_SM(int state)
 	switch(state)
 	{
 		case -1:
+		state = wait;
+		break;
+		
+		case wait:
+		if(xFlag){
+			state = moveX; xComplete = 0; 
+			xMovement = movement.x * SensorDist;
+		}
+		else if(yFlag){
+			state = moveY; yComplete = 0; 
+			yMovement = movement.y * SensorDist;
+		}
+		else{state = wait;}
+		break;
+		
+		case moveX:
+		if(xComplete){
+			xFlag = 0; xComplete = 0; 
+			if(yFlag){
+				state = moveY; 
+				yComplete = 0; 				
+				yMovement = movement.y * SensorDist;
+			}
+			else{
+				state = wait; 					
+				//updating motor location	
+				lcdLocOut(dest);
+				MotorLocation = UpdatePoint(dest.x, dest.y);
+			}
+		}
+		else{state = moveX;}
+		break;
+		
+		case moveY:
+		if(yComplete){
+			yFlag = 0; yComplete = 0; 
+			state = wait;
+			//updating motor location
+			lcdLocOut(dest);
+			MotorLocation = UpdatePoint(dest.x, dest.y);	
+		}
+		else{state = moveY;}
 		break;
 		
 		default:
@@ -299,11 +432,82 @@ int MotorMove_SM(int state)
 		case -1:
 		break;
 
+		case wait:
+		break;
+		
+		case moveX:
+		//move in CW direction
+		if(xMovement > 0){
+			if(xTicks < xMovement){
+				PORTA = CW[xRotation];
+				++xRotation;
+				if(xRotation >= 8){xRotation = 0;}
+				++xTicks;
+			}
+			else{
+				xRotation = 0;
+				xTicks = 0;
+				xFlag = 0;
+				xComplete = 1;
+				PORTA = 0;
+			}
+		}
+		//move in CCW
+		else{
+			if(xTicks < (xMovement * -1)){
+				PORTA = CCW[xRotation];
+				++xRotation;
+				if(xRotation >= 8){xRotation = 0;}
+				++xTicks;
+			}
+			else{
+				xRotation = 0;
+				xTicks = 0;	
+				xFlag = 0;
+				xComplete = 1;
+				PORTA = 0;
+			}
+		}
+		break;
+		
+		case moveY:
+		if(yMovement > 0){
+			if(yTicks < yMovement){
+				PORTB = CW[yRotation];
+				++yRotation;
+				if(yRotation >= 8){yRotation = 0;}
+				++yTicks;
+			}
+			else{
+				yRotation = 0;
+				yTicks = 0;
+				yFlag = 0;
+				yComplete = 1;
+				PORTB = 0;
+			}
+		}
+		//move in CCW
+		else{
+			if(yTicks < (yMovement * -1)){
+				PORTB = CCW[yRotation];
+				++yRotation;
+				if(yRotation >= 8){yRotation = 0;}
+				++yTicks;
+			}
+			else{
+				yRotation = 0;
+				yTicks = 0;
+				yFlag = 0;
+				yComplete = 1;
+				PORTB = 0;
+			}
+		}
+		break;
+		
 		default:
 		break;
 	}
 	return state;
 }
-
 
 #endif

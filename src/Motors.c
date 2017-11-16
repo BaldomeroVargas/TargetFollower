@@ -34,37 +34,46 @@ int main(void)
 	
 	/*motor inits*/
 	MotorLocation = MotorInit();
+	previous = MotorInit();
 	
 	/*initializing queue*/
-	unsigned char queueSize = 10;
+	unsigned char queueSize = 30;
 	moves = QueueInit(queueSize);
 	
 	//Task Scheduler
 	unsigned char k = 0;
-	tasksNum = 3;
-	task tsks[3];
+	tasksNum = 4;
+	task tsks[4];
 	tasks = tsks;
 	
 	tasks[k].state = -1;
-	tasks[k].period = 10;
+	tasks[k].period = 20;
 	tasks[k].elapsedTime = tasks[k].period;
 	tasks[k].TickFct = &RecieveData;
 	
 	++k;
 	
 	tasks[k].state = -1;
-	tasks[k].period = 10;
+	tasks[k].period = 20;
 	tasks[k].elapsedTime = tasks[k].period;
-	tasks[k].TickFct = &LCD_SM;
+	tasks[k].TickFct = &EnQueue_SM;
 	
 	++k;
 	
 	tasks[k].state = -1;
-	tasks[k].period = 2000;
+	tasks[k].period = 20;
 	tasks[k].elapsedTime = tasks[k].period;
-	tasks[k].TickFct = &PrintQueue_SM;
+	tasks[k].TickFct = &MotorLogic_SM;
 	
-	TimerSet(10);
+	++k;
+	
+	tasks[k].state = -1;
+	tasks[k].period = 2;
+	tasks[k].elapsedTime = tasks[k].period;
+	tasks[k].TickFct = &MotorMove_SM;
+	
+	
+	TimerSet(2);
 	TimerOn();
 	
 	while(1){}
