@@ -83,7 +83,7 @@ unsigned char bit = 0;
 /*Motor Logic*/
 const unsigned char CCW[] = {0x06, 0x02, 0x0A, 0x08, 0x09, 0x01, 0x05, 0x04};
 const unsigned char CW[] = {0x04, 0x05, 0x01, 0x09, 0x08, 0x0A, 0x02, 0x06};
-const unsigned short SensorDist = 256; //find once board is created, just a place holder
+const unsigned short SensorDist = 1550; //find once board is created, just a place holder
 signed short xMovement = 0;
 signed short yMovement = 0;
 unsigned short xTicks = 0;
